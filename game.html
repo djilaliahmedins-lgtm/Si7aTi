@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>البطل ضد القمل - بلدية تيارت</title>
+    <style>
+        /* ==================== CSS (التصميم) ==================== */
+        @font-face { font-family: 'Blabeloo'; src: url('font.ttf') format('truetype'); }
+
+        body {
+            margin: 0; background-color: #1a1a1a; height: 100vh;
+            font-family: 'Blabeloo', sans-serif; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            user-select: none; touch-action: none; -webkit-touch-callout: none;
+        }
+
+        .main-screen {
+            width: 100%; max-width: 500px; height: 100%; max-height: 950px;
+            background: #fff; display: flex; flex-direction: column;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* --- منطقة اللعبة (القفز هنا فقط) --- */
+        #gameContainer {
+            flex: 60; position: relative;
+            background-color: #333;
+            background-image: url('bg.jpg'); background-size: cover; background-position: center bottom;
+            overflow: hidden; border-bottom: 6px solid #222;
+            /* السماح باللمس */
+            touch-action: none;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* العنوان */
+        #headerTitle {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background-color: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 50px;
+            border: 1px solid #3498db; font-size: 20px; color: #fff; white-space: nowrap;
+            box-shadow: 0 0 15px rgba(52,152,219,0.6); pointer-events: none; z-index: 10;
+        }
+
+        /* العداد */
+        #scoreBoard {
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(90deg, #fff, #eee); padding: 5px 25px;
+            border-radius: 50px; font-weight: bold; color: #333; font-size: 18px;
+            border: 3px solid #f1c40f; display: flex; gap: 15px; pointer-events: none; z-index: 10;
+        }
+        #scoreBoard span { color: #e67e22; font-size: 22px; }
+
+        /* --- منطقة التحكم والأسئلة --- */
+        #bottomPanel {
+            flex: 40; background: linear-gradient(to bottom, #f9f9f9, #e0e0e0);
+            padding: 15px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; text-align: center;
+            border-top: 2px solid #ccc;
+            position: relative; z-index: 20; /* لضمان أن الأزرار قابلة للضغط */
+        }
+
+        #qText { font-size: 32px; color: #2c3e50; margin: 0 0 20px 0; }
+        .btn-container { display: flex; gap: 20px; width: 100%; justify-content: center; }
+        
+        .btn {
+            font-family: 'Blabeloo', sans-serif; border: none; border-radius: 20px;
+            cursor: pointer; font-size: 28px; padding: 15px 0; color: white; width: 48%;
+            position: relative; z-index: 30; /* أزرار فوق كل شيء */
+        }
+        .btn-yes { background: linear-gradient(to bottom, #2ecc71, #27ae60); box-shadow: 0 6px 0 #1e8449; }
+        .btn-no { background: linear-gradient(to bottom, #e74c3c, #c0392b); box-shadow: 0 6px 0 #922b21; }
+        .btn:active { transform: translateY(4px); box-shadow: none; }
+
+        #startScreen .btn, #endScreen .btn {
+            background: linear-gradient(to bottom, #3498db, #2980b9);
+            width: auto; padding: 15px 50px; font-size: 30px; box-shadow: 0 8px 0 #1a5276; margin-top: 10px;
+        }
+
+        /* رسائل وشاشات */
+        #msgIdle p { font-size: 24px; color: #555; animation: pulse 1.5s infinite; }
+        #fbText { font-size: 24px; font-weight: bold; height: 40px; margin-top: 20px; }
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #f1c40f; z-index: 50;
+        }
+        .hidden { display: none !important; }
+        
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="main-screen">
+        
+        <div id="gameContainer">
+            <div id="headerTitle">الهيكل البلدي لحفظ الصحة - بلدية تيارت</div>
+            <div id="scoreBoard"><span>🦠</span> <span id="liceVal">10</span> | <span>⭐</span> <span id="scoreVal">0</span></div>
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="startScreen" class="overlay">
+                <h1 style="font-size: 50px; margin:0 0 20px;">البطل ضد القمل</h1>
+                <button class="btn" onclick="startGame()">ابدأ المغامرة</button>
+            </div>
+
+            <div id="endScreen" class="overlay hidden">
+                <div style="background:#fff; padding:20px; border-radius:20px; text-align:center; border:4px solid #f1c40f;">
+                    <h1 style="color:#27ae60; margin:0;">مبروك يا بطل!</h1>
+                    <p id="finalScore" style="color:#333; font-size:24px; font-weight:bold;"></p>
+                    <button class="btn" onclick="location.reload()">لعب مرة أخرى</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottomPanel">
+            <div id="msgIdle">
+                <p>👆 اضغط في الأعلى للقفز</p>
+            </div>
+            <div id="msgQuiz" class="hidden">
+                <h2 id="qText">سؤال...</h2>
+                <div class="btn-container">
+                    <button class="btn btn-yes" onclick="checkAnswer(true)">صح ✅</button>
+                    <button class="btn btn-no" onclick="checkAnswer(false)">خطأ ❌</button>
+                </div>
+                <p id="fbText"></p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==================== JavaScript (المنطق) ====================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('gameContainer'); // منطقة القفز المحددة
+
+        canvas.width = 600;
+        canvas.height = 800;
+        const GROUND_LEVEL = 710;
+
+        // الصور
+        const heroImg = new Image(); heroImg.src = 'hero.jpg'; 
+        const enemyImg = new Image(); enemyImg.src = 'enemy.jpg';
+        const fireImg = new Image(); fireImg.src = 'fire.gif';
+        const bgImg = new Image(); bgImg.src = 'bg.jpg';
+
+        let heroLoaded = false; heroImg.onload = () => { heroLoaded = true; };
+        let enemyLoaded = false; enemyImg.onload = () => { enemyLoaded = true; };
+
+        // المتغيرات
+        let gameState = "START";
+        let score = 0;
+        let liceDefeated = 0;
+        const TOTAL_LICE = 10;
+        let gameSpeed = 6;
+        let bgX = 0;
+
+        const hero = { x: 50, y: GROUND_LEVEL - 140, w: 140, h: 140, dy: 0, jump: -22, grav: 1.2, ground: GROUND_LEVEL - 140, onGround: false };
+        let enemies = [];
+        let enemyTimer = 0;
+        let currEnemy = -1;
+        let particles = []; 
+
+        const questions = [
+            { q: "القمل يطير؟", a: false, info: "خطأ! القمل يزحف" },
+            { q: "المشط ينقل العدوى؟", a: true, info: "صح! لا تشاركه" },
+            { q: "القمل يحب الشعر المتسخ؟", a: false, info: "خطأ! يعيش في النظيف" },
+            { q: "يجب حلق الشعر للعلاج؟", a: false, info: "خطأ! يوجد دواء" },
+            { q: "القمل حشرة صغيرة؟", a: true, info: "صح! كحبة السمسم" },
+            { q: "بيض القمل يسمى الصيبان؟", a: true, info: "صح! لونه أبيض" },
+            { q: "القمل يعيش على الحيوانات؟", a: false, info: "خطأ! بشري فقط" },
+            { q: "الخل يساعد في إزالة البيض؟", a: true, info: "صح! يفكك الالتصاق" },
+            { q: "القمل ينتقل بالسباحة؟", a: false, info: "خطأ! يتمسك بالشعر" },
+            { q: "النظافة تحمي من القمل؟", a: true, info: "صح! الوقاية خير" }
+        ];
+
+        // --- إصلاح اللمس الحاسم ---
+        // نربط القفز بمنطقة اللعبة العلوية فقط (gameContainer)
+        // هذا يمنع التداخل مع أزرار الأسئلة في الأسفل
+        
+        function tryJump(e) {
+            if (e.cancelable) e.preventDefault(); // منع التكبير
+            if (hero.onGround && gameState === "PLAYING") {
+                hero.dy = hero.jump;
+                hero.onGround = false;
+            }
+        }
+
+        // استخدام touchstart و mousedown على الحاوية العلوية فقط
+        gameContainer.addEventListener('touchstart', tryJump, {passive: false});
+        gameContainer.addEventListener('mousedown', tryJump);
+        // إصلاح اللمس — تشغيل القفز عند لمس الكانفاس مباشرة
+        canvas.addEventListener('touchstart', tryJump, {passive: false});
+        canvas.addEventListener('mousedown', tryJump);
+
+        
+        // زر المسافة للكيبورد
+        window.addEventListener('keydown', (e) => {
+            if(e.code === "Space") {
+                if (hero.onGround && gameState === "PLAYING") {
+                    hero.dy = hero.jump;
+                    hero.onGround = false;
+                }
+            }
+        });
+
+        // --- دوال اللعبة ---
+        function startGame() {
+            document.getElementById('startScreen').classList.add('hidden');
+            gameState = "PLAYING";
+            score = 0; liceDefeated = 0; enemies = []; particles = [];
+            hero.y = hero.ground;
+            updateScore();
+            loop();
+        }
+
+        function loop() {
+            if (gameState === "PLAYING" || gameState === "BURNING") {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            } else if (gameState === "QUIZ") {
+                draw();
+            }
+        }
+
+        function update() {
+            if (gameState !== "QUIZ") {
+                hero.dy += hero.grav;
+                hero.y += hero.dy;
+                if (hero.y > hero.ground) { hero.y = hero.ground; hero.dy = 0; hero.onGround = true; }
+            }
+
+            if (gameState === "PLAYING") {
+                bgX -= 2; 
+                if (bgX <= -canvas.width) bgX = 0;
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.8; p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            if (gameState === "PLAYING") {
+                enemyTimer++;
+                if (enemyTimer > 100 && Math.random() < 0.03) {
+                    if(liceDefeated < TOTAL_LICE) {
+                        enemies.push({ 
+                            x: canvas.width, y: GROUND_LEVEL - 110, w: 110, h: 110, 
+                            qIdx: Math.floor(Math.random()*questions.length),
+                            isBurning: false, burnTime: 0 
+                        });
+                        enemyTimer = 0;
+                    }
+                }
+            }
+
+            for (let i = 0; i < enemies.length; i++) {
+                let e = enemies[i];
+                if (e.isBurning) {
+                    e.burnTime--;
+                    if (e.burnTime <= 0) {
+                        enemies.splice(i, 1);
+                        resumeGameAfterBurn();
+                        return;
+                    }
+                } else if (gameState === "PLAYING") {
+                    e.x -= gameSpeed;
+                    if (hero.x < e.x + e.w - 40 && hero.x + hero.w - 40 > e.x && 
+                        hero.y < e.y + e.h && hero.y + hero.h > e.y) {
+                        triggerQuiz(i);
+                        return;
+                    }
+                    if (e.x + e.w < 0) { enemies.splice(i, 1); i--; }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (bgImg.complete) {
+                ctx.drawImage(bgImg, bgX, 0, canvas.width, canvas.height);
+                ctx.drawImage(bgImg, bgX + canvas.width, 0, canvas.width, canvas.height);
+            } else { ctx.fillStyle = "#333"; ctx.fillRect(0,0,canvas.width, canvas.height); }
+
+            if (heroLoaded) ctx.drawImage(heroImg, hero.x, hero.y, hero.w, hero.h);
+            else { ctx.fillStyle = "blue"; ctx.fillRect(hero.x, hero.y, hero.w, hero.h); }
+
+            for (let e of enemies) {
+                if (e.isBurning) {
+                    ctx.drawImage(fireImg, e.x - 20, e.y - 30, e.w + 40, e.h + 40);
+                } else {
+                    if (enemyLoaded) ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
+                    else { ctx.fillStyle = "red"; ctx.fillRect(e.x, e.y, e.w, e.h); }
+                }
+            }
+
+            for (let p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function spawnConfetti() {
+            let cx = canvas.width / 2; let cy = canvas.height / 2;
+            for (let i = 0; i < 100; i++) {
+                particles.push({
+                    x: cx, y: cy, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 1) * 30,
+                    size: Math.random() * 10 + 5, color: `hsl(${Math.random() * 360}, 100%, 50%)`, life: 80
+                });
+            }
+        }
+
+        function triggerQuiz(idx) {
+            gameState = "QUIZ";
+            currEnemy = idx;
+            let q = questions[enemies[idx].qIdx];
+            document.getElementById('msgIdle').classList.add('hidden');
+            document.getElementById('msgQuiz').classList.remove('hidden');
+            document.getElementById('qText').innerText = q.q;
+            document.getElementById('fbText').innerText = "";
+        }
+
+        function checkAnswer(ans) {
+            let e = enemies[currEnemy];
+            let q = questions[e.qIdx];
+            let fb = document.getElementById('fbText');
+            if (ans === q.a) {
+                score += 10; liceDefeated++;
+                fb.style.color = "#2ecc71"; fb.innerText = "أحسنت! " + q.info;
+                spawnConfetti();
+                setTimeout(() => { startBurningEffect(); }, 1000);
+            } else {
+                fb.style.color = "#e74c3c"; fb.innerText = q.info;
+                setTimeout(() => { enemies.splice(currEnemy, 1); resumeGameAfterBurn(); }, 2000);
+            }
+        }
+
+        function startBurningEffect() {
+            document.getElementById('msgQuiz').classList.add('hidden');
+            document.getElementById('msgIdle').classList.remove('hidden');
+            if (enemies[currEnemy]) {
+                enemies[currEnemy].isBurning = true;
+                enemies[currEnemy].burnTime = 60;
+                gameState = "BURNING";
+                loop();
+            } else { resumeGameAfterBurn(); }
+        }
+
+        function resumeGameAfterBurn() {
+            updateScore();
+            document.getElementById('msgQuiz').classList.add('hidden');
+            document.getElementById('msgIdle').classList.remove('hidden');
+            if (liceDefeated >= TOTAL_LICE) {
+                document.getElementById('endScreen').classList.remove('hidden');
+                document.getElementById('finalScore').innerText = "مجموع النقاط: " + score;
+                gameState = "END";
+            } else {
+                gameState = "PLAYING";
+                loop();
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('liceVal').innerText = TOTAL_LICE - liceDefeated;
+        }
+
+        requestAnimationFrame(draw);
+    </script>
+</body>
+</html>
